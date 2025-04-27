@@ -85,7 +85,7 @@ class IEEEScraper:
         - Otherwise, only process years newer than our most recent stored issue
         - Handle the December/January edge case automatically
         """
-        issues = []
+        all_new_issues = [] 
         driver = None
         
         try:
@@ -113,7 +113,7 @@ class IEEEScraper:
                 years_to_process = all_years
             else:
                 # Get the most recent issue we have
-                most_recent_issue = previous_issues.get_most_recent()
+                most_recent_issue = previous_issues.get_latest_issue()
                 last_year = most_recent_issue.year
                 last_month = most_recent_issue.numerical_month
                 
@@ -134,6 +134,7 @@ class IEEEScraper:
             # Process each year
             for year in years_to_process:
                 print(f"Processing year {year}", end="")
+                year_issues = []  # Current year issues
                 try:
                     # Make sure we're on the main page
                     driver = self.browser.navigate(url)
@@ -171,21 +172,28 @@ class IEEEScraper:
                         details = self.extract_issue_details(issue_driver, issue_num)
                         
                         if details:
-                            issues.append(Issue(
+                            new_issue = Issue(  # Changed: assign to variable first
                                 volume=volume_number,
                                 issue=issue_num,
                                 month=details['month'],
                                 numerical_month=details['numerical_month'],
                                 year=details['year'],
                                 isnumber=isnumber
-                            ))
+                            )
+                            year_issues.append(new_issue)  # Add to year-specific list
+                            all_new_issues.append(new_issue)  # Also add to all issues list
                             count += 1
                     
                     print(f" -- Found {count} new issues out of {len(issue_links)}.")
+
+                    # Save progress after each year
+                    if year_issues:
+                        print(f"Saving {len(year_issues)} issues for year {year}...")
+                        previous_issues.save_issues(year_issues)
                 except Exception as e:
                     print(f"Error processing year {year}: {e}")
                     
-            return issues
+            return all_new_issues
         except Exception as e:
             print(f"Error getting issues: {e}")
             return []

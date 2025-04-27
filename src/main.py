@@ -26,10 +26,6 @@ def main():
     try:
         # Get new issues
         new_issues = scraper.get_issues(ISSUES_URL, previous_issues)
-        
-        if not new_issues:
-            print("No new issues found.")
-            return
 
         # Print new issues
         if new_issues:
@@ -39,6 +35,7 @@ def main():
                       f"Month: {issue.month}, isnumber: {issue.isnumber}")
         else:
             print("No new issues found.")
+            return
 
         previous_issues.save_issues(new_issues)
 
