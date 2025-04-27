@@ -1,21 +1,20 @@
 import os
 from browser_manager import BrowserManager
-from issue_storage import IssueStorage
+from issue_storage import IssuesDictionary
 from issue_scraper import IEEEScraper
 
 
+# Constants
+ISSUES_URL = "https://ieeexplore.ieee.org/xpl/issues?punumber=92&isnumber=10937162"
+
 def main():
-    # URL for IEEE Transactions on VLSI Systems issues
-    url = "https://ieeexplore.ieee.org/xpl/issues?punumber=92&isnumber=10937162"
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
-    storage = IssueStorage(data_dir)
+    previous_issues = IssuesDictionary(data_dir)
     browser = BrowserManager(headless=True)
     scraper = IEEEScraper(browser)
 
-    previous_issues = storage.load_issues()
-    latest_issue = storage.get_latest_issue() 
-
+    latest_issue = previous_issues.get_latest_issue()
 
     # Find the newest issue if previous_issues is not empty
     if latest_issue:
@@ -25,8 +24,8 @@ def main():
         print("No previous issues found.")
 
     try:
-        # Get current issues
-        new_issues = scraper.get_issues(url, previous_issues)
+        # Get new issues
+        new_issues = scraper.get_issues(ISSUES_URL, previous_issues)
         
         if not new_issues:
             print("No new issues found.")
@@ -40,12 +39,8 @@ def main():
                       f"Month: {issue.month}, isnumber: {issue.isnumber}")
         else:
             print("No new issues found.")
-        
-        #all_issues = previous_issues + new_issues
 
-        storage.save_issues(new_issues)
-        # Save current issues for next run
-        #save_issues(all_issues, issues_file)
+        previous_issues.save_issues(new_issues)
 
     except Exception as e:
         print(f"Error: {str(e)}")

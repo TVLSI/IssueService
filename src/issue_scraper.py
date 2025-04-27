@@ -5,6 +5,7 @@ import time
 
 from browser_manager import BrowserManager
 from issue import Issue
+from issue_storage import IssuesDictionary
 
 class IEEEScraper:
     """Handles scraping IEEE TVLSI issues"""
@@ -73,8 +74,8 @@ class IEEEScraper:
         
         return None
 
-    # TODO: switch this to a dictionary by issue number
-    def get_issues(self, url: str, previous_issues: List[Issue]) -> List[Issue]:
+
+    def get_issues(self, url: str, previous_issues: IssuesDictionary) -> List[Issue]:
         """Get all issues from the IEEE TVLSI page"""
         issues = []
         driver = None
@@ -85,6 +86,11 @@ class IEEEScraper:
             issue_links = self.extract_issue_links(driver)
             
             for issue_num, isnumber, href in issue_links:
+                # Check if the issue already exists in the previous issues
+                if previous_issues.has_issue(isnumber):
+                    #print(f"Issue {isnumber} already exists in previous issues.")
+                    continue
+
                 self.browser.navigate(href)
                 details = self.extract_issue_details(driver, issue_num)
                 

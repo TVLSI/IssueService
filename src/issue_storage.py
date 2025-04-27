@@ -1,47 +1,56 @@
 import os
 import json
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 from issue import Issue
 
 # Constants
 ISSUES_FILENAME = "previous_issues.json"
 
-# TODO: make this a dictionary by issue number
-# TODO: Load the issues on init so we dont load it mulitple times
-class IssueStorage:
-    """Handles loading and saving issues from/to storage"""
+class IssuesDictionary(dict):
+    """Dictionary of IEEE TVLSI issues that auto-loads/saves to storage"""
     
     def __init__(self, data_dir: str):
+        super().__init__()
         self.data_dir = data_dir
         self.issues_file = os.path.join(data_dir, ISSUES_FILENAME)
         os.makedirs(data_dir, exist_ok=True)
-
-
-    def load_issues(self) -> List[Issue]:
-        """Load issues from file"""
-        if not os.path.exists(self.issues_file):
-            return []
         
-        with open(self.issues_file, 'r') as f:
-            data = json.load(f)
-            return [Issue.from_dict(item) for item in data]
+        # Load issues on initialization
+        self._load_issues()
 
 
-    def save_issues(self, issues: List[Issue]) -> None:
-        """Save issues to file, sorted by recency"""
-        # TODO: This should class be a dictionary and append the new issues to the dictionary and save it.
-        issue_list = self.load_issues()
+    def _load_issues(self) -> None:
+        """Load issues from file into this dictionary"""
+        if not os.path.exists(self.issues_file):
+            return
+        
+        try:
+            with open(self.issues_file, 'r') as f:
+                data = json.load(f)
+                for item in data:
+                    issue = Issue.from_dict(item)
+                    key = issue.isnumber
+                    self[key] = issue
+        except Exception as e:
+            print(f"Error loading issues: {e}")
 
-        # TODO: Switch to check for duplicate month / year. 
-        # Just be sure we dont have duplicates by issue number.
-        for issue in issues:
-            if issue not in issue_list:
-                issue_list.append(issue)
 
-        # Sort issues by year, volume, month, and issue number in descending order
+    def save_issues(self, new_issues: List[Issue]) -> None:
+        """Add new issues to the dictionary and save all to file"""
+        # Add new issues to the dictionary
+        for issue in new_issues:
+            key = issue.isnumber
+            self[key] = issue
+        
+        self.save()
+
+
+    def save(self) -> None:
+        """Save the entire dictionary to file"""
+        # Sort issues by recency before saving
         sorted_issues = sorted(
-            issue_list, 
-            key=lambda x: (x.year, x.volume, x.numerical_month, x.issue),
+            self.values(),
+            key=lambda x: (x.year, x.numerical_month, x.issue),
             reverse=True
         )
         
@@ -53,8 +62,17 @@ class IssueStorage:
 
 
     def get_latest_issue(self) -> Optional[Issue]:
-        """Get the most recent issue from storage"""
-        issues = self.load_issues()
-        if not issues:
+        """Get the most recent issue"""
+        if not self:
             return None
-        return issues[0]  # Already sorted, so first is most recent
+        
+        # Find the latest issue by sorting by year and month.
+        return sorted(
+            self.values(),
+            key=lambda x: (x.year, x.numerical_month, x.issue),
+            reverse=True
+        )[0]
+    
+    def has_issue(self, isnumber: str) -> bool:
+        """Check if a specific issue exists by its isnumber"""
+        return isnumber in self
