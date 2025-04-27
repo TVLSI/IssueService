@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 
-def get_issues(url):
+def get_issues(url, last_issue=None):
     """
     Scrape IEEE TVLSI issues page and extract issue information using Selenium.
     """
@@ -142,6 +142,13 @@ def get_issues(url):
 
 def save_issues(issues, file_path):
     """Save the list of issues to a JSON file."""
+    # Sort all issues by year, volume, numerical_month, and issue before saving
+
+    issues.sort(
+        key=lambda x: (x['year'], x['volume'], x['numerical_month'], x['issue']), 
+        reverse=True
+    )
+
     with open(file_path, 'w') as f:
         json.dump(issues, f, indent=2)
 
@@ -179,23 +186,23 @@ def main():
     os.makedirs(data_dir, exist_ok=True)
     issues_file = os.path.join(data_dir, "previous_issues.json")
     
+    # Load previously seen issues
+    previous_issues = load_issues(issues_file)
+
+    # Find the newest issue if previous_issues is not empty
+    if previous_issues:
+        # The issues should already be sorted in the file, so just take the first one
+        last_issue = previous_issues[0]
+        print(f"Last issue loaded: Volume {last_issue['volume']}, "
+              f"Issue {last_issue['issue']}, {last_issue['month']} {last_issue['year']}")
+    else:
+        last_issue = None
+        print("No previous issues found.")
+
     try:
         # Get current issues
-        current_issues = get_issues(url)
-        
-        if not current_issues:
-            print("No issues found on the page. Check if the page structure has changed.")
-            return
-        
-        # Sort issues by year (descending), volume (descending)
-        current_issues.sort(key=lambda x: (x['year'], x['volume']), reverse=True)
-        
-        # Load previously seen issues
-        previous_issues = load_issues(issues_file)
-        
-        # Find new issues
-        new_issues = find_new_issues(current_issues, previous_issues)
-        
+        new_issues = get_issues(url, last_issue)
+
         # Print new issues
         if new_issues:
             print(f"Found {len(new_issues)} new issue(s):")
@@ -204,9 +211,11 @@ def main():
         else:
             print("No new issues found.")
         
+        all_issues = previous_issues + new_issues
+
         # Save current issues for next run
-        save_issues(current_issues, issues_file)
-        
+        save_issues(all_issues, issues_file)
+
     except Exception as e:
         print(f"Error: {str(e)}")
 
