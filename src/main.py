@@ -1,6 +1,6 @@
 import os
 from browser_manager import BrowserManager
-from issue_storage import IssuesDictionary
+from issues_dictionary import IssuesDictionary
 from issue_scraper import IEEEScraper
 
 

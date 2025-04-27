@@ -5,7 +5,9 @@ import time
 
 from browser_manager import BrowserManager
 from issue import Issue
-from issue_storage import IssuesDictionary
+from issues_dictionary import IssuesDictionary
+import calendar
+from datetime import datetime
 
 class IEEEScraper:
     """Handles scraping IEEE TVLSI issues"""
@@ -48,27 +50,28 @@ class IEEEScraper:
     def extract_issue_details(self, driver, issue_num: int) -> Optional[dict]:
         """Extract detailed information from an issue page"""
         try:
+
             issue_details_element = driver.find_element(By.CSS_SELECTOR, "div.u-m-1.u-mt-1.u-mr-1.text-base-md p b")
             issue_details_text = issue_details_element.text.strip()
             
-            month_year_match = re.search(r'•\s+(\w+)-(\d{4})', issue_details_text)
+            month_year_match = re.search(r'•\s+([A-Za-z]+\.?)\s*-\s*(\d{4})', issue_details_text)
             
             if month_year_match and f"Issue {issue_num}" in issue_details_text:
-                full_month = month_year_match.group(1)
+                # Extract month and year
+                full_month = month_year_match.group(1).rstrip('.')
                 year = int(month_year_match.group(2))
                 
-                month_to_num = {
-                    'January': 1, 'February': 2, 'March': 3, 'April': 4,
-                    'May': 5, 'June': 6, 'July': 7, 'August': 8,
-                    'September': 9, 'October': 10, 'November': 11, 'December': 12
-                }
-                numerical_month = month_to_num.get(full_month, 0)
+                # Try to match the month using calendar module
+                month_abbrs = {month.lower(): i for i, month in enumerate(calendar.month_abbr) if month}
+                numerical_month = month_abbrs.get(full_month[:3].lower())
                 
-                return {
-                    'month': full_month,
-                    'numerical_month': numerical_month,
-                    'year': year
-                }
+                if numerical_month:
+                    proper_month = calendar.month_name[numerical_month]
+                    return {
+                        'month': proper_month,
+                        'numerical_month': numerical_month,
+                        'year': year
+                    }
         except Exception as e:
             print(f"Error extracting issue details: {e}")
         
@@ -76,34 +79,112 @@ class IEEEScraper:
 
 
     def get_issues(self, url: str, previous_issues: IssuesDictionary) -> List[Issue]:
-        """Get all issues from the IEEE TVLSI page"""
+        """
+        Get issues from the IEEE TVLSI page using smart year selection:
+        - If previous_issues is empty, get all issues
+        - Otherwise, only process years newer than our most recent stored issue
+        - Handle the December/January edge case automatically
+        """
         issues = []
         driver = None
         
         try:
             driver = self.browser.navigate(url)
-            volume_number = self.extract_volume_number(driver)
-            issue_links = self.extract_issue_links(driver)
             
-            for issue_num, isnumber, href in issue_links:
-                # Check if the issue already exists in the previous issues
-                if previous_issues.has_issue(isnumber):
-                    #print(f"Issue {isnumber} already exists in previous issues.")
+            # Get all available years from the website
+            year_elements = driver.find_elements(By.CSS_SELECTOR, 
+                "div.issue-details-past-tabs.year ul li a")
+            all_years = []
+            
+            for elem in year_elements:
+                try:
+                    year_text = elem.text.strip()
+                    all_years.append(int(year_text))
+                except ValueError:
                     continue
-
-                self.browser.navigate(href)
-                details = self.extract_issue_details(driver, issue_num)
-                
-                if details:
-                    issues.append(Issue(
-                        volume=volume_number,
-                        issue=issue_num,
-                        month=details['month'],
-                        numerical_month=details['numerical_month'],
-                        year=details['year'],
-                        isnumber=isnumber
-                    ))
+                    
+            # Sort years to pull the oldest to newest. 
+            all_years.sort(reverse=False)
             
+            # Determine which years to process
+            if not previous_issues:
+                # Process all years if no previous issues
+                print("No previous issues found. Processing all years...")
+                years_to_process = all_years
+            else:
+                # Get the most recent issue we have
+                most_recent_issue = previous_issues.get_most_recent()
+                last_year = most_recent_issue.year
+                last_month = most_recent_issue.numerical_month
+                
+                # Determine years to process
+                years_to_process = []
+                
+                # Add years newer than our most recent issue
+                for year in all_years:
+                    if year > last_year:
+                        years_to_process.append(year)
+                
+                # Add the year of our last issue unless it was December (already complete)
+                if last_month < 12:
+                    years_to_process.append(last_year)
+                    
+                print(f"Processing years newer than {last_year}-{last_month}: {years_to_process}")
+                    
+            # Process each year
+            for year in years_to_process:
+                print(f"Processing year {year}", end="")
+                try:
+                    # Make sure we're on the main page
+                    driver = self.browser.navigate(url)
+                    
+                    # Click on the year link if it's not already active
+                    year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']"
+                    try:
+                        year_element = driver.find_element(By.XPATH, year_selector)
+                        parent_li = year_element.find_element(By.XPATH, "..")
+                        
+                        # Check if this year tab is already active
+                        is_active = 'active' in parent_li.get_attribute('class')
+                        
+                        # Only click if it's not already active
+                        if not is_active:
+                            year_element.click()
+                            time.sleep(1)  # Wait for the page to load
+                    except Exception as e:
+                        print(f"Year {year} not found or not clickable: {e}")
+                        continue
+                    
+                    # Extract volume and issue data
+                    volume_number = self.extract_volume_number(driver)
+                    issue_links = self.extract_issue_links(driver)
+
+                    count = 0
+                    # Process each issue
+                    for issue_num, isnumber, href in issue_links:
+                        # Skip if already in previous issues
+                        if previous_issues.has_issue(isnumber):
+                            continue
+                        
+                        # Navigate to the issue page
+                        issue_driver = self.browser.navigate(href)
+                        details = self.extract_issue_details(issue_driver, issue_num)
+                        
+                        if details:
+                            issues.append(Issue(
+                                volume=volume_number,
+                                issue=issue_num,
+                                month=details['month'],
+                                numerical_month=details['numerical_month'],
+                                year=details['year'],
+                                isnumber=isnumber
+                            ))
+                            count += 1
+                    
+                    print(f" -- Found {count} new issues out of {len(issue_links)}.")
+                except Exception as e:
+                    print(f"Error processing year {year}: {e}")
+                    
             return issues
         except Exception as e:
             print(f"Error getting issues: {e}")

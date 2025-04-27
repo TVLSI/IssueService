@@ -14,9 +14,28 @@ class IssuesDictionary(dict):
         self.data_dir = data_dir
         self.issues_file = os.path.join(data_dir, ISSUES_FILENAME)
         os.makedirs(data_dir, exist_ok=True)
-        
+
+        # Test file write permissions early
+        self._test_file_permissions()
+
         # Load issues on initialization
         self._load_issues()
+
+
+    def _test_file_permissions(self) -> None:
+        """Test file write permissions early to avoid wasted scraping work"""
+        try:
+            # If file doesn't exist, create it as an empty JSON array
+            if not os.path.exists(self.issues_file):
+                with open(self.issues_file, 'w') as f:
+                    json.dump([], f)
+                    
+            # If it exists, make sure we can open it for writing
+            else:
+                with open(self.issues_file, 'a') as f:
+                    pass
+        except Exception as e:
+            raise IOError(f"Cannot write to issues file {self.issues_file}: {e}")
 
 
     def _load_issues(self) -> None:
