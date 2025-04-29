@@ -44,6 +44,7 @@ class IEEEScraper:
                     issue_data.append((issue_num, isnumber, href))
             except Exception as e:
                 print(f"Error parsing issue link: {e}")
+                raise
                 
         return issue_data
     
@@ -74,6 +75,7 @@ class IEEEScraper:
                     }
         except Exception as e:
             print(f"Error extracting issue details: {e}")
+            raise
         
         return None
 
@@ -199,7 +201,7 @@ class IEEEScraper:
             return year_issues
         except Exception as e:
             print(f"Error processing year {year}: {e}")
-            raise e
+            raise
 
 
     def get_issues(self, url: str, previous_issues: IssuesDictionary) -> List[Issue]:
@@ -237,7 +239,7 @@ class IEEEScraper:
             return all_new_issues
         except Exception as e:
             print(f"Error getting issues: {e}")
-            raise e
+            raise
         finally:
             if driver:
                 self.browser.close()
