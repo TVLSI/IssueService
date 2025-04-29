@@ -3,17 +3,15 @@ import json
 from typing import Dict, List, Optional, Any
 from issue import Issue
 
-# Constants
-ISSUES_FILENAME = "previous_issues.json"
 
 class IssuesDictionary(dict):
     """Dictionary of IEEE TVLSI issues that auto-loads/saves to storage"""
     
-    def __init__(self, data_dir: str):
+    def __init__(self, issues_file_path: str):
         super().__init__()
-        self.data_dir = data_dir
-        self.issues_file = os.path.join(data_dir, ISSUES_FILENAME)
-        os.makedirs(data_dir, exist_ok=True)
+        self.issues_file = issues_file_path
+        self.data_dir = os.path.dirname(self.issues_file)
+        os.makedirs(self.data_dir, exist_ok=True)
 
         # Test file write permissions early
         self._test_file_permissions()

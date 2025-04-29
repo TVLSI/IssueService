@@ -1,0 +1,22 @@
+name: 'IEEE TVLSI Issue Scraper'
+description: 'Scrapes IEEE TVLSI website for new issues and updates an issues file'
+
+inputs:
+  issues_file:
+    description: 'Path to the issues file that will be updated'
+    required: true
+    default: 'issues.json'
+
+outputs:
+  new_issues_count:
+    description: 'Number of new issues found'
+  new_issues:
+    description: 'JSON array of all new issues found'
+  has_new_issues:
+    description: 'Boolean indicating whether new issues were found'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.issues_file }}

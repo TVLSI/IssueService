@@ -1,4 +1,6 @@
 import os
+import sys
+import json
 from browser_manager import BrowserManager
 from issues_dictionary import IssuesDictionary
 from issue_scraper import IEEEScraper
@@ -6,11 +8,19 @@ from issue_scraper import IEEEScraper
 
 # Constants
 ISSUES_URL = "https://ieeexplore.ieee.org/xpl/issues?punumber=92&isnumber=10937162"
+DEFAULT_ISSUES_FILENAME = "previous_issues.json"
 
 def main():
-    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+    # Parse command line arguments for GitHub Action mode
+    if len(sys.argv) > 1:
+        # Use the provided file path directly
+        issues_file = sys.argv[1]
+    else:
+        # Default path for local testing
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        issues_file = os.path.join(data_dir, DEFAULT_ISSUES_FILENAME)
 
-    previous_issues = IssuesDictionary(data_dir)
+    previous_issues = IssuesDictionary(issues_file)
     browser = BrowserManager(headless=True)
     scraper = IEEEScraper(browser)
 
@@ -33,14 +43,40 @@ def main():
             for issue in new_issues:
                 print(f"Volume: {issue.volume}, Year: {issue.year}, "
                       f"Month: {issue.month}, isnumber: {issue.isnumber}")
+                
+            # Set GitHub Action outputs
+            if os.environ.get('GITHUB_OUTPUT'):
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write(f"new_issues_count={len(new_issues)}\n")
+                    f.write("has_new_issues=true\n")
+                    
+                    # Convert issues to a list of dictionaries for JSON serialization
+                    issues_list = []
+                    for issue in new_issues:
+                        issues_list.append({
+                            "volume": issue.volume,
+                            "issue": issue.issue,
+                            "year": issue.year,
+                            "month": issue.month,
+                            "isnumber": issue.isnumber,
+                            "url": issue.url if hasattr(issue, 'url') else ""
+                        })
+                    
+                    # Write issues as a JSON string
+                    f.write(f"new_issues<<EOF\n{json.dumps(issues_list)}\nEOF\n")
         else:
             print("No new issues found.")
+            # Set GitHub Action outputs for no new issues
+            if os.environ.get('GITHUB_OUTPUT'):
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write("new_issues_count=0\n")
+                    f.write("has_new_issues=false\n")
+                    f.write(f"new_issues<<EOF\n[]\nEOF\n")
             return
 
     except Exception as e:
         print(f"Error: {str(e)}")
         # Exit with error code
-        import sys
         sys.exit(1)
         
 if __name__ == "__main__":
