@@ -30,4 +30,4 @@ jobs:
 
       - name: Run tests
         run: |
-          docker run --rm my-python-image:latest pytest tests/test_main.py
+          docker run --rm my-python-image:latest pytest
