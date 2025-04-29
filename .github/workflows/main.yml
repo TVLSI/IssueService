@@ -25,7 +25,8 @@ jobs:
           context: .
           file: Dockerfile
           push: false
+          tags: my-python-image:latest
 
       - name: Run tests
         run: |
-          docker run --rm <image_name> pytest tests/test_main.py
+          docker run --rm my-python-image:latest pytest tests/test_main.py
