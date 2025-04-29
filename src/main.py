@@ -37,10 +37,11 @@ def main():
             print("No new issues found.")
             return
 
-        previous_issues.save_issues(new_issues)
-
     except Exception as e:
         print(f"Error: {str(e)}")
-
+        # Exit with error code
+        import sys
+        sys.exit(1)
+        
 if __name__ == "__main__":
     main()

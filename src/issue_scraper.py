@@ -78,6 +78,130 @@ class IEEEScraper:
         return None
 
 
+    def get_years(self, driver) -> List[int]:
+        """Extract all available years from the website"""
+        years = []
+        try:
+            year_elements = driver.find_elements(By.CSS_SELECTOR, 
+                "div.issue-details-past-tabs.year ul li a")
+            
+            for elem in year_elements:
+                try:
+                    year_text = elem.text.strip()
+                    years.append(int(year_text))
+                except ValueError:
+                    continue
+            
+            # Sort years from oldest to newest
+            years.sort()
+        except Exception as e:
+            print(f"Error getting years from website: {e}")
+        
+        return years
+
+
+    def determine_years_to_process(self, all_years: List[int], previous_issues: IssuesDictionary) -> List[int]:
+        """Determine which years need to be processed based on previous issues"""
+        if not previous_issues:
+            # Process all years if no previous issues
+            print("No previous issues found. Processing all years...")
+            return all_years
+        
+        # Get the most recent issue we have
+        most_recent_issue = previous_issues.get_latest_issue()
+        last_year = most_recent_issue.year
+        last_month = most_recent_issue.numerical_month
+        
+        years_to_process = []
+        
+        # Add years newer than our most recent issue
+        for year in all_years:
+            if year > last_year:
+                years_to_process.append(year)
+        
+        # Add the year of our last issue unless it was December (already complete)
+        if last_month < 12 and last_year in all_years:
+            years_to_process.append(last_year)
+        
+        print(f"Processing years newer than {last_year}-{last_month}: {years_to_process}")
+        return years_to_process
+
+
+    def select_year(self, driver, year: int) -> bool:
+        """Select the tab for a specific year and return success status"""
+        year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']"
+        try:
+            year_element = driver.find_element(By.XPATH, year_selector)
+            parent_li = year_element.find_element(By.XPATH, "..")
+            
+            # Check if this year tab is already active
+            is_active = 'active' in parent_li.get_attribute('class')
+            
+            # Only click if it's not already active
+            if not is_active:
+                year_element.click()
+                time.sleep(1)  # Wait for the page to load
+            return True
+        except Exception as e:
+            print(f"Year {year} not found or not clickable: {e}")
+            return False
+
+
+    def process_issue(self, issue_num: int, isnumber: str, href: str, volume_number: int) -> Optional[Issue]:
+        """Process a single issue and return an Issue object if successful"""
+
+        # Navigate to the issue page
+        issue_driver = self.browser.navigate(href)
+        details = self.extract_issue_details(issue_driver, issue_num)
+            
+        if details:
+            return Issue(
+                volume=volume_number,
+                issue=issue_num,
+                month=details['month'],
+                numerical_month=details['numerical_month'],
+                year=details['year'],
+                isnumber=isnumber
+            )
+        
+        return None
+
+
+    def process_year(self, driver, url: str, year: int, previous_issues: IssuesDictionary) -> List[Issue]:
+        """Process all issues for a single year"""
+        year_issues = []
+        try:
+            # Make sure we're on the main page
+            driver = self.browser.navigate(url)
+            
+            # Click on the year tab
+            if not self.select_year(driver, year):
+                return []
+            
+            # Extract volume and issue data
+            volume_number = self.extract_volume_number(driver)
+            issue_links = self.extract_issue_links(driver)
+
+            count = 0
+            # Process each issue
+            for issue_num, isnumber, href in issue_links:
+                # Skip if already in previous issues
+                if previous_issues.has_issue(isnumber):
+                    continue
+                
+                # Process this issue
+                new_issue = self.process_issue(issue_num, isnumber, href, volume_number)
+                if new_issue:
+                    year_issues.append(new_issue)
+                    count += 1
+            
+            print(f" -- Found {count} new issues out of {len(issue_links)}.")
+            return year_issues
+        except Exception as e:
+            print(f"Error processing year {year}: {e}")
+            raise e
+
+
     def get_issues(self, url: str, previous_issues: IssuesDictionary) -> List[Issue]:
         """
         Get issues from the IEEE TVLSI page using smart year selection:
@@ -85,118 +209,35 @@ class IEEEScraper:
         - Otherwise, only process years newer than our most recent stored issue
         - Handle the December/January edge case automatically
         """
-        all_new_issues = [] 
+        all_new_issues = []
         driver = None
         
         try:
             driver = self.browser.navigate(url)
             
             # Get all available years from the website
-            year_elements = driver.find_elements(By.CSS_SELECTOR, 
-                "div.issue-details-past-tabs.year ul li a")
-            all_years = []
-            
-            for elem in year_elements:
-                try:
-                    year_text = elem.text.strip()
-                    all_years.append(int(year_text))
-                except ValueError:
-                    continue
-                    
-            # Sort years to pull the oldest to newest. 
-            all_years.sort(reverse=False)
+            all_years = self.get_years(driver)
             
             # Determine which years to process
-            if not previous_issues:
-                # Process all years if no previous issues
-                print("No previous issues found. Processing all years...")
-                years_to_process = all_years
-            else:
-                # Get the most recent issue we have
-                most_recent_issue = previous_issues.get_latest_issue()
-                last_year = most_recent_issue.year
-                last_month = most_recent_issue.numerical_month
-                
-                # Determine years to process
-                years_to_process = []
-                
-                # Add years newer than our most recent issue
-                for year in all_years:
-                    if year > last_year:
-                        years_to_process.append(year)
-                
-                # Add the year of our last issue unless it was December (already complete)
-                if last_month < 12:
-                    years_to_process.append(last_year)
-                    
-                print(f"Processing years newer than {last_year}-{last_month}: {years_to_process}")
-                    
+            years_to_process = self.determine_years_to_process(all_years, previous_issues)
+            
             # Process each year
             for year in years_to_process:
                 print(f"Processing year {year}", end="")
-                year_issues = []  # Current year issues
-                try:
-                    # Make sure we're on the main page
-                    driver = self.browser.navigate(url)
-                    
-                    # Click on the year link if it's not already active
-                    year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']"
-                    try:
-                        year_element = driver.find_element(By.XPATH, year_selector)
-                        parent_li = year_element.find_element(By.XPATH, "..")
-                        
-                        # Check if this year tab is already active
-                        is_active = 'active' in parent_li.get_attribute('class')
-                        
-                        # Only click if it's not already active
-                        if not is_active:
-                            year_element.click()
-                            time.sleep(1)  # Wait for the page to load
-                    except Exception as e:
-                        print(f"Year {year} not found or not clickable: {e}")
-                        continue
-                    
-                    # Extract volume and issue data
-                    volume_number = self.extract_volume_number(driver)
-                    issue_links = self.extract_issue_links(driver)
-
-                    count = 0
-                    # Process each issue
-                    for issue_num, isnumber, href in issue_links:
-                        # Skip if already in previous issues
-                        if previous_issues.has_issue(isnumber):
-                            continue
-                        
-                        # Navigate to the issue page
-                        issue_driver = self.browser.navigate(href)
-                        details = self.extract_issue_details(issue_driver, issue_num)
-                        
-                        if details:
-                            new_issue = Issue(  # Changed: assign to variable first
-                                volume=volume_number,
-                                issue=issue_num,
-                                month=details['month'],
-                                numerical_month=details['numerical_month'],
-                                year=details['year'],
-                                isnumber=isnumber
-                            )
-                            year_issues.append(new_issue)  # Add to year-specific list
-                            all_new_issues.append(new_issue)  # Also add to all issues list
-                            count += 1
-                    
-                    print(f" -- Found {count} new issues out of {len(issue_links)}.")
-
-                    # Save progress after each year
-                    if year_issues:
-                        print(f"Saving {len(year_issues)} issues for year {year}...")
-                        previous_issues.save_issues(year_issues)
-                except Exception as e:
-                    print(f"Error processing year {year}: {e}")
+                year_issues = self.process_year(driver, url, year, previous_issues)
+                
+                # Add to all new issues
+                all_new_issues.extend(year_issues)
+                
+                # Save progress after each year
+                if year_issues:
+                    print(f"Saving {len(year_issues)} issues for year {year}...")
+                    previous_issues.save_issues(year_issues)
                     
             return all_new_issues
         except Exception as e:
             print(f"Error getting issues: {e}")
-            return []
+            raise e
         finally:
             if driver:
                 self.browser.close()
