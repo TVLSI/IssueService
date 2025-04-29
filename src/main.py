@@ -17,7 +17,7 @@ def main():
         issues_file = sys.argv[1]
     else:
         # Default path for local testing
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        data_dir = os.path.join(os.getcwd(), "data")
         issues_file = os.path.join(data_dir, DEFAULT_ISSUES_FILENAME)
 
     previous_issues = IssuesDictionary(issues_file)
