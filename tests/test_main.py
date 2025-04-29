@@ -38,6 +38,7 @@ def mock_dependencies(monkeypatch):
 @patch('src.main.IssuesDictionary')
 @patch('src.main.BrowserManager')
 @patch('src.main.IEEEScraper')
+@patch('sys.argv', ['main.py', '/tmp/test_issues.json']) 
 def test_main_no_issues(mock_scraper_cls, mock_browser_cls, mock_issues_dict_cls):
     """Test main function when no issues are found - using direct patching"""
     # Set up mocks

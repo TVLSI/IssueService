@@ -11,14 +11,17 @@ ISSUES_URL = "https://ieeexplore.ieee.org/xpl/issues?punumber=92&isnumber=109371
 DEFAULT_ISSUES_FILENAME = "previous_issues.json"
 
 def main():
+    print(f"sys.argv: {sys.argv}")
     # Parse command line arguments for GitHub Action mode
     if len(sys.argv) > 1:
         # Use the provided file path directly
         issues_file = sys.argv[1]
+        print(f"Using command line path: '{issues_file}'")
     else:
         # Default path for local testing
         data_dir = os.path.join(os.getcwd(), "data")
         issues_file = os.path.join(data_dir, DEFAULT_ISSUES_FILENAME)
+        print(f"Using default path: '{issues_file}'")
 
     previous_issues = IssuesDictionary(issues_file)
     browser = BrowserManager(headless=True)
