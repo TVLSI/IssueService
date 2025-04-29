@@ -185,19 +185,21 @@ class IEEEScraper:
             issue_links = self.extract_issue_links(driver)
 
             count = 0
+            possible_new_issues = 0
             # Process each issue
             for issue_num, isnumber, href in issue_links:
                 # Skip if already in previous issues
                 if previous_issues.has_issue(isnumber):
                     continue
-                
+                possible_new_issues += 1
                 # Process this issue
                 new_issue = self.process_issue(issue_num, isnumber, href, volume_number)
                 if new_issue:
                     year_issues.append(new_issue)
                     count += 1
-            
-            print(f" -- Found {count} new issues out of {len(issue_links)}.")
+            if possible_new_issues > 0:
+                print(f" -- Found {count} new issues out of {len(issue_links)}.")
+
             return year_issues
         except Exception as e:
             print(f"Error processing year {year}: {e}")

@@ -23,7 +23,9 @@ class BrowserManager:
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        
+            chrome_options.add_argument("--log-level=3")  # Only show fatal errors
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            
         # Use webdriver_manager to handle ChromeDriver installation
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
