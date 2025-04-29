@@ -58,8 +58,7 @@ def main():
                             "issue": issue.issue,
                             "year": issue.year,
                             "month": issue.month,
-                            "isnumber": issue.isnumber,
-                            "url": issue.url if hasattr(issue, 'url') else ""
+                            "isnumber": issue.isnumber
                         })
                     
                     # Write issues as a JSON string
