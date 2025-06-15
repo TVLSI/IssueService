@@ -46,7 +46,7 @@ def main():
             for issue in new_issues:
                 print(f"Volume: {issue.volume}, Year: {issue.year}, "
                       f"Month: {issue.month}, isnumber: {issue.isnumber}")
-                
+            
             # Set GitHub Action outputs
             if os.environ.get('GITHUB_OUTPUT'):
                 with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -54,15 +54,7 @@ def main():
                     f.write("has_new_issues=true\n")
                     
                     # Convert issues to a list of dictionaries for JSON serialization
-                    issues_list = []
-                    for issue in new_issues:
-                        issues_list.append({
-                            "volume": issue.volume,
-                            "issue": issue.issue,
-                            "year": issue.year,
-                            "month": issue.month,
-                            "isnumber": issue.isnumber
-                        })
+                    issues_list = [issue.to_dict() for issue in new_issues]
                     
                     # Write issues as a JSON string
                     f.write(f"new_issues<<EOF\n{json.dumps(issues_list)}\nEOF\n")
@@ -74,7 +66,7 @@ def main():
                     f.write("new_issues_count=0\n")
                     f.write("has_new_issues=false\n")
                     f.write(f"new_issues<<EOF\n[]\nEOF\n")
-            return
+        return
 
     except Exception as e:
         print(f"Error: {str(e)}")
