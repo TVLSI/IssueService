@@ -56,8 +56,13 @@ def main():
                     # Convert issues to a list of dictionaries for JSON serialization
                     issues_list = [issue.to_dict() for issue in new_issues]
                     
-                    # Write issues as a JSON string
-                    f.write(f"new_issues<<EOF\n{json.dumps(issues_list)}\nEOF\n")
+                    # Serialize issues as a compact JSON string. Using
+                    # ``ensure_ascii=False`` keeps the output valid JSON
+                    # while avoiding unnecessary character escapes.
+                    issues_json = json.dumps(issues_list, ensure_ascii=False)
+
+                    # Write issues to the GitHub output file
+                    f.write(f"new_issues<<EOF\n{issues_json}\nEOF\n")
         else:
             print("No new issues found.")
             # Set GitHub Action outputs for no new issues
