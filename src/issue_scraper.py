@@ -1,4 +1,5 @@
 import re
+import logging
 from typing import List, Optional, Tuple
 from selenium.webdriver.common.by import By
 import time
@@ -8,6 +9,8 @@ from issue import Issue
 from issues_dictionary import IssuesDictionary
 import calendar
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class IEEEScraper:
     """Handles scraping IEEE TVLSI issues"""
@@ -43,7 +46,7 @@ class IEEEScraper:
                     isnumber = isnumber_match.group(1)
                     issue_data.append((issue_num, isnumber, href))
             except Exception as e:
-                print(f"Error parsing issue link: {e}")
+                logger.error(f"Error parsing issue link: {e}", exc_info=True)
                 raise
                 
         return issue_data
@@ -74,7 +77,7 @@ class IEEEScraper:
                         'year': year
                     }
         except Exception as e:
-            print(f"Error extracting issue details: {e}")
+            logger.error(f"Error extracting issue details: {e}", exc_info=True)
             raise
         
         return None
@@ -108,7 +111,7 @@ class IEEEScraper:
             # Remove duplicates and sort years from oldest to newest
             years = sorted(list(set(years)))
         except Exception as e:
-            print(f"Error getting years from website: {e}")
+            logger.error(f"Error getting years from website: {e}", exc_info=True)
         
         return years
 
@@ -117,11 +120,17 @@ class IEEEScraper:
         """Determine which years need to be processed based on previous issues"""
         if not previous_issues:
             # Process all years if no previous issues
-            print("No previous issues found. Processing all years...")
+            logger.info("No previous issues found. Processing all years...")
             return all_years
         
         # Get the most recent issue we have
         most_recent_issue = previous_issues.get_latest_issue()
+        
+        # Fix: Check if most_recent_issue is None before accessing attributes
+        if most_recent_issue is None:
+            logger.info("No previous issues found. Processing all years...")
+            return all_years
+        
         last_year = most_recent_issue.year
         last_month = most_recent_issue.numerical_month
         
@@ -136,7 +145,7 @@ class IEEEScraper:
         if last_month < 12 and last_year in all_years:
             years_to_process.append(last_year)
         
-        print(f"Processing years newer than {last_year}-{last_month}: {years_to_process}")
+        logger.info(f"Processing years newer than {last_year}-{last_month}: {years_to_process}")
         return years_to_process
 
 
@@ -156,15 +165,13 @@ class IEEEScraper:
                     href = link.get_attribute('href')
                     # If it has an href with isnumber, it's a direct link to the year's issues
                     if href and 'isnumber=' in href:
-                        print(f"Year {year} found as current year (direct link)")
-                        # Navigate to this page to show the year's issues
-                        driver.get(href)
-                        time.sleep(2)  # Wait for page to load
-                        return True
+                    logger.debug(f"Year {year} found as current year (direct link)")
+                    # Navigate to this page to show the year's issues
+                    driver.get(href)
+                    time.sleep(2)  # Wait for page to load
+                    return True
         except Exception as e:
-            print(f"Error checking for direct year link: {e}")
-        
-        # Try to find and click clickable year tabs (for past years)
+            logger.debug(f"Error checking for direct year link: {e}")
         # These show as: <a data-analytics_identifier="past_issue_selected_year">2025</a>
         year_selectors = [
             f"//a[normalize-space(text())='{year}' and @data-analytics_identifier='past_issue_selected_year']",  # Past years with analytics ID
@@ -185,12 +192,12 @@ class IEEEScraper:
                     year_element.click()
                     time.sleep(2)  # Wait for the page to load
                 
-                print(f"Year {year} selected via clickable tab")
+                logger.debug(f"Year {year} selected via clickable tab")
                 return True
             except Exception:
                 continue  # Try next selector
         
-        print(f"Year {year} not found with any selector")
+        logger.warning(f"Year {year} not found with any selector")
         return False
 
 
@@ -284,11 +291,11 @@ class IEEEScraper:
                         continue  # Try next description element
                         
             except Exception as e:
-                print(f"Error extracting from TOC page elements: {e}")
+                logger.error(f"Error extracting from TOC page elements: {e}", exc_info=True)
                 
             return None
         except Exception as e:
-            print(f"Error in extract_issue_from_toc_page: {e}")
+            logger.error(f"Error in extract_issue_from_toc_page: {e}", exc_info=True)
             return None
 
 
@@ -320,9 +327,9 @@ class IEEEScraper:
                         isnumber=isnumber
                     )
                     year_issues.append(new_issue)
-                    print(f" -- Found 1 new issue: Volume {toc_info['volume']}, Issue {toc_info['issue']}, {toc_info['month']} {toc_info['year']}")
+                    logger.info(f" -- Found 1 new issue: Volume {toc_info['volume']}, Issue {toc_info['issue']}, {toc_info['month']} {toc_info['year']}")
                 else:
-                    print(f" -- Issue already in database")
+                    logger.debug(f" -- Issue already in database")
                 
                 return year_issues
             
@@ -344,11 +351,11 @@ class IEEEScraper:
                     year_issues.append(new_issue)
                     count += 1
             if possible_new_issues > 0:
-                print(f" -- Found {count} new issues out of {len(issue_links)}.")
+                logger.info(f" -- Found {count} new issues out of {len(issue_links)}.")
 
             return year_issues
         except Exception as e:
-            print(f"Error processing year {year}: {e}")
+            logger.error(f"Error processing year {year}: {e}", exc_info=True)
             raise
 
 
@@ -373,7 +380,7 @@ class IEEEScraper:
             
             # Process each year
             for year in years_to_process:
-                print(f"Processing year {year}", end="")
+                logger.info(f"Processing year {year}...")
                 year_issues = self.process_year(driver, url, year, previous_issues)
                 
                 # Add to all new issues
@@ -381,12 +388,12 @@ class IEEEScraper:
                 
                 # Save progress after each year
                 if year_issues:
-                    print(f"Saving {len(year_issues)} issues for year {year}...")
+                    logger.info(f"Saving {len(year_issues)} issues for year {year}...")
                     previous_issues.save_issues(year_issues)
                     
             return all_new_issues
         except Exception as e:
-            print(f"Error getting issues: {e}")
+            logger.error(f"Error getting issues: {e}", exc_info=True)
             raise
         finally:
             if driver:

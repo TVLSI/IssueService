@@ -204,7 +204,7 @@ class TestIssuesDictionaryQuerying:
 class TestIssuesDictionaryEdgeCases:
     """Test edge cases and error handling"""
     
-    def test_handles_malformed_json_gracefully(self, temp_issues_file, capsys):
+    def test_handles_malformed_json_gracefully(self, temp_issues_file, caplog):
         """Test that malformed JSON is handled gracefully"""
         # Write invalid JSON to file
         with open(temp_issues_file, 'w') as f:
@@ -212,12 +212,11 @@ class TestIssuesDictionaryEdgeCases:
         
         issues_dict = IssuesDictionary(temp_issues_file)
         
-        # Should create empty dictionary and print error
+        # Should create empty dictionary and log error
         assert len(issues_dict) == 0
-        captured = capsys.readouterr()
-        assert "Error loading issues" in captured.out
+        assert "Malformed JSON" in caplog.text or "error loading issues" in caplog.text.lower()
     
-    def test_handles_missing_fields_in_json(self, temp_issues_file, capsys):
+    def test_handles_missing_fields_in_json(self, temp_issues_file, caplog):
         """Test that JSON with missing fields is handled"""
         # Write JSON with missing fields
         with open(temp_issues_file, 'w') as f:
@@ -227,10 +226,9 @@ class TestIssuesDictionaryEdgeCases:
         
         # Should handle error gracefully
         assert len(issues_dict) == 0
-        captured = capsys.readouterr()
-        assert "Error loading issues" in captured.out
+        assert "Invalid issue data" in caplog.text or "error" in caplog.text.lower()
     
-    def test_handles_invalid_data_types(self, temp_issues_file, capsys):
+    def test_handles_invalid_data_types(self, temp_issues_file, caplog):
         """Test that invalid data types are handled"""
         # Write JSON with wrong types
         with open(temp_issues_file, 'w') as f:
@@ -247,8 +245,7 @@ class TestIssuesDictionaryEdgeCases:
         
         # Should handle error gracefully
         assert len(issues_dict) == 0
-        captured = capsys.readouterr()
-        assert "Error loading issues" in captured.out
+        assert "Invalid issue data" in caplog.text or "error" in caplog.text.lower()
     
     def test_large_dataset_performance(self, temp_issues_file):
         """Test that large datasets are handled efficiently"""

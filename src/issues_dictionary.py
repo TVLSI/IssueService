@@ -1,7 +1,10 @@
 import os
 import json
+import logging
 from typing import Dict, List, Optional, Any
 from issue import Issue
+
+logger = logging.getLogger(__name__)
 
 
 class IssuesDictionary(dict):
@@ -48,8 +51,12 @@ class IssuesDictionary(dict):
                     issue = Issue.from_dict(item)
                     key = issue.isnumber
                     self[key] = issue
+        except json.JSONDecodeError as e:
+            logger.error(f"Malformed JSON in issues file {self.issues_file}: {e}")
+        except (KeyError, ValueError) as e:
+            logger.error(f"Invalid issue data in file {self.issues_file}: {e}")
         except Exception as e:
-            print(f"Error loading issues: {e}")
+            logger.error(f"Unexpected error loading issues: {e}", exc_info=True)
 
 
     def save_issues(self, new_issues: List[Issue]) -> None:
