@@ -84,18 +84,29 @@ class IEEEScraper:
         """Extract all available years from the website"""
         years = []
         try:
-            year_elements = driver.find_elements(By.CSS_SELECTOR, 
-                "div.issue-details-past-tabs.year ul li a")
+            # Look for year tabs in both past and current year sections
+            year_selectors = [
+                "div.issue-details-past-tabs.year ul li a",  # Past years
+                "div.issue-details-tabs.year ul li a",      # Current year section
+                ".issue-details-past-tabs ul li a",         # Alternative past years selector
+                ".issue-details-tabs ul li a"               # Alternative current year selector
+            ]
             
-            for elem in year_elements:
+            for selector in year_selectors:
                 try:
-                    year_text = elem.text.strip()
-                    years.append(int(year_text))
-                except ValueError:
-                    continue
+                    year_elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in year_elements:
+                        try:
+                            year_text = elem.text.strip()
+                            if year_text.isdigit():  # Only process numeric years
+                                years.append(int(year_text))
+                        except ValueError:
+                            continue
+                except Exception:
+                    continue  # Try next selector if this one fails
             
-            # Sort years from oldest to newest
-            years.sort()
+            # Remove duplicates and sort years from oldest to newest
+            years = sorted(list(set(years)))
         except Exception as e:
             print(f"Error getting years from website: {e}")
         
@@ -131,22 +142,43 @@ class IEEEScraper:
 
     def select_year(self, driver, year: int) -> bool:
         """Select the tab for a specific year and return success status"""
-        year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']"
+        
+        # Check if this year is already the current/default view (like 2026)
+        # Current year is shown as a direct link, not a clickable tab
+        current_year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[@href and text()='{year}']"
         try:
-            year_element = driver.find_element(By.XPATH, year_selector)
-            parent_li = year_element.find_element(By.XPATH, "..")
-            
-            # Check if this year tab is already active
-            is_active = 'active' in parent_li.get_attribute('class')
-            
-            # Only click if it's not already active
-            if not is_active:
-                year_element.click()
-                time.sleep(1)  # Wait for the page to load
+            current_year_element = driver.find_element(By.XPATH, current_year_selector)
+            # If we find it as a direct link, it's already the current view
+            print(f"Year {year} is already the current view (direct link)")
             return True
-        except Exception as e:
-            print(f"Year {year} not found or not clickable: {e}")
-            return False
+        except Exception:
+            pass  # Not the current year, continue to try clickable tabs
+        
+        # Try to find and click clickable year tabs (for past years)
+        year_selectors = [
+            f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}' and @data-analytics_identifier='past_issue_selected_year']",  # Past years with analytics ID
+            f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']",  # Generic past years
+            f"//div[contains(@class, 'issue-details-tabs')]/ul/li/a[text()='{year}']",       # Alternative location
+        ]
+        
+        for selector in year_selectors:
+            try:
+                year_element = driver.find_element(By.XPATH, selector)
+                parent_li = year_element.find_element(By.XPATH, "..")
+                
+                # Check if this year tab is already active
+                is_active = 'active' in parent_li.get_attribute('class')
+                
+                # Only click if it's not already active
+                if not is_active:
+                    year_element.click()
+                    time.sleep(1)  # Wait for the page to load
+                return True
+            except Exception:
+                continue  # Try next selector
+        
+        print(f"Year {year} not found with any selector")
+        return False
 
 
     def process_issue(self, issue_num: int, isnumber: str, href: str, volume_number: int) -> Optional[Issue]:
