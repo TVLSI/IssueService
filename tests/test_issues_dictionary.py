@@ -71,6 +71,10 @@ class TestIssuesDictionaryInitialization:
         if os.name == 'nt':
             pytest.skip("Read-only testing is complex on Windows")
         
+        # Skip if running as root (e.g., in Docker) since root can write to read-only dirs
+        if os.geteuid() == 0:
+            pytest.skip("Skipping read-only test when running as root")
+        
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()
         readonly_file = readonly_dir / "issues.json"
