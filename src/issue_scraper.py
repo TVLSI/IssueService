@@ -165,11 +165,11 @@ class IEEEScraper:
                     href = link.get_attribute('href')
                     # If it has an href with isnumber, it's a direct link to the year's issues
                     if href and 'isnumber=' in href:
-                    logger.debug(f"Year {year} found as current year (direct link)")
-                    # Navigate to this page to show the year's issues
-                    driver.get(href)
-                    time.sleep(2)  # Wait for page to load
-                    return True
+                        logger.debug(f"Year {year} found as current year (direct link)")
+                        # Navigate to this page to show the year's issues
+                        driver.get(href)
+                        time.sleep(2)  # Wait for page to load
+                        return True
         except Exception as e:
             logger.debug(f"Error checking for direct year link: {e}")
         # These show as: <a data-analytics_identifier="past_issue_selected_year">2025</a>
