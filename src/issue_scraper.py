@@ -143,22 +143,33 @@ class IEEEScraper:
     def select_year(self, driver, year: int) -> bool:
         """Select the tab for a specific year and return success status"""
         
-        # Check if this year is already the current/default view (like 2026)
-        # Current year is shown as a direct link, not a clickable tab
-        current_year_selector = f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[@href and text()='{year}']"
+        # First, try to find the year as a link with href (this is the most current year)
+        # The current year shows as: <a href="/xpl/tocresult.jsp?isnumber=...">2026 </a>
         try:
-            current_year_element = driver.find_element(By.XPATH, current_year_selector)
-            # If we find it as a direct link, it's already the current view
-            print(f"Year {year} is already the current view (direct link)")
-            return True
-        except Exception:
-            pass  # Not the current year, continue to try clickable tabs
+            # More relaxed selector - just look for any anchor with the year text and href attribute
+            year_str = str(year)
+            year_links = driver.find_elements(By.XPATH, f"//a[@href and contains(text(), '{year_str}')]")
+            
+            for link in year_links:
+                # Check if the text is exactly the year (with possible whitespace)
+                if link.text.strip() == year_str:
+                    href = link.get_attribute('href')
+                    # If it has an href with isnumber, it's a direct link to the year's issues
+                    if href and 'isnumber=' in href:
+                        print(f"Year {year} found as current year (direct link)")
+                        # Navigate to this page to show the year's issues
+                        driver.get(href)
+                        time.sleep(2)  # Wait for page to load
+                        return True
+        except Exception as e:
+            print(f"Error checking for direct year link: {e}")
         
         # Try to find and click clickable year tabs (for past years)
+        # These show as: <a data-analytics_identifier="past_issue_selected_year">2025</a>
         year_selectors = [
-            f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}' and @data-analytics_identifier='past_issue_selected_year']",  # Past years with analytics ID
-            f"//div[contains(@class, 'issue-details-past-tabs')]/ul/li/a[text()='{year}']",  # Generic past years
-            f"//div[contains(@class, 'issue-details-tabs')]/ul/li/a[text()='{year}']",       # Alternative location
+            f"//a[normalize-space(text())='{year}' and @data-analytics_identifier='past_issue_selected_year']",  # Past years with analytics ID
+            f"//div[contains(@class, 'issue-details-past-tabs')]//a[normalize-space(text())='{year}']",  # Generic past years
+            f"//div[contains(@class, 'issue-details-tabs')]//a[normalize-space(text())='{year}']",       # Alternative location
         ]
         
         for selector in year_selectors:
@@ -172,7 +183,9 @@ class IEEEScraper:
                 # Only click if it's not already active
                 if not is_active:
                     year_element.click()
-                    time.sleep(1)  # Wait for the page to load
+                    time.sleep(2)  # Wait for the page to load
+                
+                print(f"Year {year} selected via clickable tab")
                 return True
             except Exception:
                 continue  # Try next selector
@@ -201,6 +214,84 @@ class IEEEScraper:
         return None
 
 
+    def extract_issue_from_toc_page(self, driver) -> Optional[dict]:
+        """Extract issue information when on a TOC (table of contents) page
+        
+        This handles the case where clicking a year takes us directly to an issue's TOC page,
+        which happens for the current year or years with only one issue.
+        """
+        try:
+            # Check if we're on a TOC page by looking for the URL pattern
+            current_url = driver.current_url
+            if 'tocresult.jsp' not in current_url:
+                return None
+            
+            # Extract isnumber from URL
+            isnumber_match = re.search(r'isnumber=(\d+)', current_url)
+            if not isnumber_match:
+                return None
+            isnumber = isnumber_match.group(1)
+            
+            # Wait for the page to fully load - Angular pages take time to render
+            time.sleep(3)
+            
+            # Find any article on the page to extract volume/issue/year info
+            # The HTML structure uses nested spans within divs
+            # We need to use textContent to get ALL text including from nested elements
+            try:
+                # Find description div elements (each article has one)
+                description_elements = driver.find_elements(By.CSS_SELECTOR, "div.description")
+                
+                for desc_elem in description_elements:
+                    try:
+                        # Look for inner divs within this description
+                        inner_divs = desc_elem.find_elements(By.CSS_SELECTOR, "div")
+                        
+                        # The second div (index 1) usually contains Year/Volume/Issue
+                        if len(inner_divs) >= 2:
+                            info_div = inner_divs[1]
+                            # Use textContent instead of .text to get all nested text
+                            text = info_div.get_attribute('textContent').strip()
+                            
+                            # Skip empty divs
+                            if not text:
+                                continue
+                            
+                            # The text should be like "Year: 2026 | Volume: 34 | Issue: 1"
+                            year_match = re.search(r'Year:\s*(\d{4})', text)
+                            volume_match = re.search(r'Volume:\s*(\d+)', text)
+                            issue_match = re.search(r'Issue:\s*(\d+)', text)
+                            
+                            if year_match and volume_match and issue_match:
+                                year = int(year_match.group(1))
+                                volume = int(volume_match.group(1))
+                                issue = int(issue_match.group(1))
+                                
+                                # Determine the month based on the issue number
+                                # IEEE TVLSI publishes monthly, so Issue 1 = January, Issue 2 = February, etc.
+                                if 1 <= issue <= 12:
+                                    month_name = calendar.month_name[issue]
+                                    
+                                    return {
+                                        'year': year,
+                                        'volume': volume,
+                                        'issue': issue,
+                                        'month': month_name,
+                                        'numerical_month': issue,
+                                        'isnumber': isnumber
+                                    }
+                    except Exception:
+                        continue  # Try next description element
+                        
+            except Exception as e:
+                print(f"Error extracting from TOC page elements: {e}")
+                
+            return None
+        except Exception as e:
+            print(f"Error in extract_issue_from_toc_page: {e}")
+            return None
+
+
     def process_year(self, driver, url: str, year: int, previous_issues: IssuesDictionary) -> List[Issue]:
         """Process all issues for a single year"""
         year_issues = []
@@ -212,7 +303,30 @@ class IEEEScraper:
             if not self.select_year(driver, year):
                 return []
             
-            # Extract volume and issue data
+            # Check if we landed on a TOC page (happens for current year with single issue)
+            toc_info = self.extract_issue_from_toc_page(driver)
+            if toc_info:
+                # We found an issue directly from the TOC page
+                isnumber = toc_info['isnumber']
+                
+                # Skip if already in previous issues
+                if not previous_issues.has_issue(isnumber):
+                    new_issue = Issue(
+                        volume=toc_info['volume'],
+                        issue=toc_info['issue'],
+                        month=toc_info['month'],
+                        numerical_month=toc_info['numerical_month'],
+                        year=toc_info['year'],
+                        isnumber=isnumber
+                    )
+                    year_issues.append(new_issue)
+                    print(f" -- Found 1 new issue: Volume {toc_info['volume']}, Issue {toc_info['issue']}, {toc_info['month']} {toc_info['year']}")
+                else:
+                    print(f" -- Issue already in database")
+                
+                return year_issues
+            
+            # Otherwise, extract volume and issue data the traditional way
             volume_number = self.extract_volume_number(driver)
             issue_links = self.extract_issue_links(driver)
 
