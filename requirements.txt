@@ -3,7 +3,8 @@ selenium>=4.9.0
 webdriver-manager>=3.8.6
 
 # Testing dependencies
-pytest==8.3.5
+# Pin below major 9 to avoid unavailable releases while allowing minor updates
+pytest>=7.0.0,<9.0.0
 pytest-cov>=4.1.0
 pytest-timeout>=2.2.0
 pytest-mock>=3.12.0
