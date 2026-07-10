@@ -6,5 +6,5 @@ webdriver-manager>=4.0.2
 # Pin below major 9 to avoid unavailable releases while allowing minor updates
 pytest>=7.0.0,<10.0.0
 pytest-cov>=4.1.0
-pytest-timeout>=2.2.0
+pytest-timeout>=2.4.0
 pytest-mock>=3.15.1
