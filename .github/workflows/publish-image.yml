@@ -67,5 +67,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Usage in workflows:**" >> $GITHUB_STEP_SUMMARY
           echo '```yaml' >> $GITHUB_STEP_SUMMARY
-          echo "- uses: TVLSI/IssueService@main" >> $GITHUB_STEP_SUMMARY
+          echo "- uses: TVLSI/IssueService@v1" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Note: action.yml on the v1 tag pins to an image digest, not :latest." >> $GITHUB_STEP_SUMMARY
+          echo "This build alone does not change what @v1 consumers run — cut a new release and update action.yml's digest to ship it." >> $GITHUB_STEP_SUMMARY

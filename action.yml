@@ -17,6 +17,6 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/tvlsi/issueservice:latest'
+  image: 'docker://ghcr.io/tvlsi/issueservice@sha256:6e3e67b00cf996abf36109c934b376fd0b85955d0fa62bafc456f2b6dc9674fc'
   args:
     - ${{ inputs.issues_file }}
